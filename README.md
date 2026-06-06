@@ -56,39 +56,41 @@ plaka-takip-projesi/
 erDiagram
     KULLANICILAR {
         int id PK
-        string kullanici_adi UK
-        string sifre
+        string kullanici_adi UK "NOT NULL"
+        string sifre "NOT NULL"
+        timestamp created_at "NOT NULL"
     }
     FIRMALAR {
         int id PK
-        string firma_adi UK
-        int kullanici_id FK
-        boolean aktif
+        string firma_adi "NOT NULL"
+        int kullanici_id FK "NOT NULL"
+        boolean aktif "NOT NULL"
+        timestamp created_at "NOT NULL"
     }
     ARACLAR {
         int id PK
-        string plaka UK
-        int firma_id FK
-        int kullanici_id FK
-        boolean aktif
+        string plaka "NOT NULL"
+        int firma_id FK "NOT NULL"
+        int kullanici_id FK "NOT NULL"
+        boolean aktif "NOT NULL"
+        timestamp created_at "NOT NULL"
     }
     KAYITLAR {
         int id PK
-        int arac_id FK
-        int kullanici_id FK
-        numeric satis_miktari
-        numeric hakedis
-        date tarih
+        int arac_id FK "NOT NULL"
+        int kullanici_id FK "NOT NULL"
+        numeric satis_miktari "NOT NULL (>= 0)"
+        numeric hakedis "NOT NULL (>= 0)"
+        date tarih "NOT NULL"
+        timestamp created_at "NOT NULL"
     }
 
-    KULLANICILAR ||--o{ FIRMALAR : "sahip"
-    KULLANICILAR ||--o{ ARACLAR : "sahip"
-    KULLANICILAR ||--o{ KAYITLAR : "sahip"
-    FIRMALAR ||--o{ ARACLAR : "barindirir"
-    ARACLAR ||--o{ KAYITLAR : "sahip"
-```
-
----
+    KULLANICILAR ||--o{ FIRMALAR : "owns (ON DELETE CASCADE)"
+    KULLANICILAR ||--o{ ARACLAR : "owns (ON DELETE CASCADE)"
+    KULLANICILAR ||--o{ KAYITLAR : "creates (ON DELETE CASCADE)"
+    FIRMALAR ||--o{ ARACLAR : "contains (ON DELETE CASCADE)"
+    ARACLAR ||--o{ KAYITLAR : "has (ON DELETE CASCADE)"
+```,StartLine:88,TargetContent:
 
 
 ## ⚙️ Kurulum ve Çalıştırma
