@@ -90,7 +90,7 @@ erDiagram
     KULLANICILAR ||--o{ KAYITLAR : "creates (ON DELETE CASCADE)"
     FIRMALAR ||--o{ ARACLAR : "contains (ON DELETE CASCADE)"
     ARACLAR ||--o{ KAYITLAR : "has (ON DELETE CASCADE)"
-```,StartLine:88,TargetContent:
+```
 
 
 ## ⚙️ Kurulum ve Çalıştırma
