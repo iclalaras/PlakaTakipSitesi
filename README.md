@@ -90,6 +90,7 @@ erDiagram
 
 ---
 
+
 ## ⚙️ Kurulum ve Çalıştırma
 
 ### 1. Gereksinimler
