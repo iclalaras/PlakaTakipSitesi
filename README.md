@@ -92,21 +92,6 @@ erDiagram
     ARACLAR ||--o{ KAYITLAR : "has (ON DELETE CASCADE)"
 ```
 
-### 🔒 Güçlendirilmiş Kısıtlamalar & Tekilleştirme
-* **Çoklu Kullanıcı İzole Tekilliği:** `firmalar` ve `araclar` tablolarında global `UNIQUE` kısıtlamaları kaldırılmıştır. Yerine, kullanıcıların aynı isimde firmaları veya plakaları kendi alanlarında tanımlayabilmesi için kullanıcı bazlı tekil indeksler (`UNIQUE INDEX`) getirilmiştir:
-  * `UNIQUE (kullanici_id, firma_adi)`
-  * `UNIQUE (kullanici_id, plaka)`
-* **İlişkisel Bütünlük:** Silinen kullanıcının veya silinen firmanın/plakanın altında yetim kayıt kalmaması için tüm yabancı anahtarlara `ON DELETE CASCADE` eklenmiştir.
-* **Veri Güvenliği (CHECK Constraints):** `kayitlar` tablosundaki `satis_miktari` ve `hakedis` kolonları için negatif değer girilmesini engelleyen `CHECK` kısıtlamaları tanımlanmıştır.
-
-### ⚡ Performans İndeksleri
-Raporlama ve sorgulama hızlarını optimize etmek amacıyla aşağıdaki indeksler eklenmiştir:
-* `idx_firmalar_kullanici_id_aktif` ON `firmalar(kullanici_id, aktif)`
-* `idx_araclar_kullanici_id_aktif` ON `araclar(kullanici_id, aktif)`
-* `idx_kayitlar_kullanici_id_tarih` ON `kayitlar(kullanici_id, tarih)`
-* `idx_kayitlar_arac_id` ON `kayitlar(arac_id)`
-
----
 
 ## ⚙️ Kurulum ve Çalıştırma
 
