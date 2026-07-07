@@ -1053,12 +1053,16 @@
         const message = document.getElementById("daily-message");
 
         if (!plakaStr) return (message.textContent = "Plaka gerekli");
+        if (!fId) return (message.textContent = "Firma seçin");
         if (!miktar || miktar <= 0) return (message.textContent = "Satış 0'dan büyük olmalı");
 
         try {
             let plate = window.platesList.find(p => p.plaka === plakaStr);
-            if (!plate) {
-                if (!fId) return (message.textContent = "Yeni plaka için firma seçin");
+            if (plate) {
+                if (String(plate.firma_id) !== String(fId)) {
+                    return (message.textContent = `Bu plaka "${plate.firma_adi || 'başka bir firma'}" firmasına kayıtlı, seçtiğiniz firma ile uyuşmuyor.`);
+                }
+            } else {
                 const pData = await fetchJson(`${API_BASE}/araclar`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
