@@ -2,7 +2,10 @@ const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 const { pool, initDb } = require("./database");
+
+const JWT_SECRET = process.env.JWT_SECRET || "plaka-takip-gizli-anahtar-2024";
 
 const app = express();
 app.use(cors());
@@ -38,10 +41,20 @@ const queryOne = async (sql, params = []) => {
     return result.rows[0];
 };
 
-const getUserId = (req) => {
-    const raw = req.query.kullanici_id || req.body.kullanici_id;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
+// JWT doğrulama middleware'i - kullanici_id artık token'dan alınır
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1]; // "Bearer TOKEN"
+
+    if (!token) return res.status(401).json({ message: "Yetkilendirme gerekli" });
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        req.kullanici_id = decoded.id;
+        next();
+    } catch (err) {
+        return res.status(403).json({ message: "Geçersiz veya süresi dolmuş token" });
+    }
 };
 
 // === AUTH ===
@@ -72,8 +85,16 @@ app.post("/auth/login", async (req, res) => {
         const isMatch = await bcrypt.compare(sifre, user.sifre);
         if (!isMatch) return res.status(401).json({ message: "Şifre hatalı" });
 
+        // JWT token oluştur (24 saat geçerli)
+        const token = jwt.sign(
+            { id: user.id, kullanici_adi: user.kullanici_adi },
+            JWT_SECRET,
+            { expiresIn: "24h" }
+        );
+
         res.json({
             message: "Giriş başarılı",
+            token,
             user: { id: user.id, kullanici_adi: user.kullanici_adi }
         });
     } catch (err) {
@@ -82,9 +103,8 @@ app.post("/auth/login", async (req, res) => {
 });
 
 // === FIRMALAR ===
-app.get("/firmalar", async (req, res) => {
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id) return res.status(400).json({ message: "Kullanıcı gerekli" });
+app.get("/firmalar", authenticateToken, async (req, res) => {
+    const kullanici_id = req.kullanici_id;
     try {
         const rows = await queryRows(
             "SELECT * FROM firmalar WHERE aktif = TRUE AND kullanici_id = $1 ORDER BY firma_adi ASC",
@@ -96,10 +116,10 @@ app.get("/firmalar", async (req, res) => {
     }
 });
 
-app.post("/firmalar", async (req, res) => {
+app.post("/firmalar", authenticateToken, async (req, res) => {
     const firma_adi = normalizeFirm(req.body.firma_adi);
-    const kullanici_id = getUserId(req);
-    if (!firma_adi || !kullanici_id) return res.status(400).json({ message: "Firma adı ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!firma_adi) return res.status(400).json({ message: "Firma adı gerekli" });
 
     try {
         const result = await pool.query(
@@ -112,11 +132,11 @@ app.post("/firmalar", async (req, res) => {
     }
 });
 
-app.post("/firmalar/sil", async (req, res) => {
+app.post("/firmalar/sil", authenticateToken, async (req, res) => {
     const firma_adi = normalizeFirm(req.body.firma_adi);
     const firma_id = req.body.firma_id;
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id || (!firma_adi && !firma_id)) return res.status(400).json({ message: "Firma ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!firma_adi && !firma_id) return res.status(400).json({ message: "Firma gerekli" });
 
     try {
         let firm = null;
@@ -136,9 +156,8 @@ app.post("/firmalar/sil", async (req, res) => {
 });
 
 // === ARAÇLAR ===
-app.get("/araclar", async (req, res) => {
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id) return res.status(400).json({ message: "Kullanıcı gerekli" });
+app.get("/araclar", authenticateToken, async (req, res) => {
+    const kullanici_id = req.kullanici_id;
     try {
         const rows = await queryRows(
             `SELECT a.id, a.plaka, a.firma_id, f.firma_adi
@@ -154,11 +173,11 @@ app.get("/araclar", async (req, res) => {
     }
 });
 
-app.post("/araclar", async (req, res) => {
+app.post("/araclar", authenticateToken, async (req, res) => {
     const plaka = normalizePlate(req.body.plaka);
     const firma_id = req.body.firma_id;
-    const kullanici_id = getUserId(req);
-    if (!plaka || !firma_id || !kullanici_id) return res.status(400).json({ message: "Plaka, firma ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!plaka || !firma_id) return res.status(400).json({ message: "Plaka ve firma gerekli" });
 
     try {
         const result = await pool.query(
@@ -171,11 +190,11 @@ app.post("/araclar", async (req, res) => {
     }
 });
 
-app.post("/araclar/sil", async (req, res) => {
+app.post("/araclar/sil", authenticateToken, async (req, res) => {
     const plaka = normalizePlate(req.body.plaka);
     const arac_id = req.body.arac_id;
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id || (!plaka && !arac_id)) return res.status(400).json({ message: "Plaka ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!plaka && !arac_id) return res.status(400).json({ message: "Plaka gerekli" });
 
     try {
         let arac = null;
@@ -194,13 +213,13 @@ app.post("/araclar/sil", async (req, res) => {
 });
 
 // === KAYITLAR ===
-app.post("/kayitlar", async (req, res) => {
+app.post("/kayitlar", authenticateToken, async (req, res) => {
     const arac_id = req.body.arac_id;
-    const kullanici_id = getUserId(req);
+    const kullanici_id = req.kullanici_id;
     const satis_miktari = toNumber(req.body.satis_miktari);
     const tarih = req.body.tarih;
 
-    if (!arac_id || !kullanici_id) return res.status(400).json({ message: "Araç ve kullanıcı gerekli" });
+    if (!arac_id) return res.status(400).json({ message: "Araç gerekli" });
     if (satis_miktari === null || satis_miktari <= 0) return res.status(400).json({ message: "Satış 0'dan büyük olmalı" });
 
     const hakedis = Number((satis_miktari * 0.25).toFixed(2));
@@ -219,10 +238,10 @@ app.post("/kayitlar", async (req, res) => {
     }
 });
 
-app.post("/kayitlar/sil", async (req, res) => {
+app.post("/kayitlar/sil", authenticateToken, async (req, res) => {
     const { id } = req.body;
-    const kullanici_id = getUserId(req);
-    if (!id || !kullanici_id) return res.status(400).json({ message: "Kayıt ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!id) return res.status(400).json({ message: "Kayıt ID gerekli" });
     try {
         const result = await pool.query("DELETE FROM kayitlar WHERE id = $1 AND kullanici_id = $2", [id, kullanici_id]);
         res.json({ message: "Kayıt silindi", deleted: result.rowCount });
@@ -231,10 +250,9 @@ app.post("/kayitlar/sil", async (req, res) => {
     }
 });
 
-app.get("/kayitlar", async (req, res) => {
+app.get("/kayitlar", authenticateToken, async (req, res) => {
     const { baslangic, bitis } = req.query;
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id) return res.status(400).json({ message: "Kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
 
     let sql = `SELECT k.id, k.arac_id, k.kullanici_id, k.satis_miktari, k.hakedis, k.tarih, a.plaka, f.firma_adi
                FROM kayitlar k
@@ -258,12 +276,12 @@ app.get("/kayitlar", async (req, res) => {
 });
 
 // === RAPORLAR ===
-app.get("/rapor/plaka", async (req, res) => {
+app.get("/rapor/plaka", authenticateToken, async (req, res) => {
     const plaka = normalizePlate(req.query.plaka);
     const { baslangic, bitis, grup = "gun" } = req.query;
-    const kullanici_id = getUserId(req);
+    const kullanici_id = req.kullanici_id;
 
-    if (!plaka || !kullanici_id) return res.status(400).json({ message: "Plaka ve kullanıcı gerekli" });
+    if (!plaka) return res.status(400).json({ message: "Plaka gerekli" });
 
     const where = [`k.kullanici_id = $1`, `a.plaka = $2`];
     const params = [kullanici_id, plaka];
@@ -309,12 +327,12 @@ app.get("/rapor/plaka", async (req, res) => {
     }
 });
 
-app.get("/rapor/firma", async (req, res) => {
+app.get("/rapor/firma", authenticateToken, async (req, res) => {
     const firma_adi = normalizeFirm(req.query.firma);
     const { baslangic, bitis, grup = "gun" } = req.query;
-    const kullanici_id = getUserId(req);
+    const kullanici_id = req.kullanici_id;
 
-    if (!firma_adi || !kullanici_id) return res.status(400).json({ message: "Firma ve kullanıcı gerekli" });
+    if (!firma_adi) return res.status(400).json({ message: "Firma gerekli" });
 
     try {
         const firm = await queryOne(
@@ -364,10 +382,10 @@ app.get("/rapor/firma", async (req, res) => {
     }
 });
 
-app.get("/rapor/tarih", async (req, res) => {
+app.get("/rapor/tarih", authenticateToken, async (req, res) => {
     const { baslangic, bitis } = req.query;
-    const kullanici_id = getUserId(req);
-    if (!baslangic || !bitis || !kullanici_id) return res.status(400).json({ message: "Tarih ve kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
+    if (!baslangic || !bitis) return res.status(400).json({ message: "Tarih gerekli" });
 
     try {
         const toplam = await queryOne(
@@ -414,10 +432,9 @@ app.get("/rapor/tarih", async (req, res) => {
     }
 });
 
-app.get("/rapor/grafik", async (req, res) => {
+app.get("/rapor/grafik", authenticateToken, async (req, res) => {
     const { gun_sayisi = 7 } = req.query;
-    const kullanici_id = getUserId(req);
-    if (!kullanici_id) return res.status(400).json({ message: "Kullanıcı gerekli" });
+    const kullanici_id = req.kullanici_id;
     try {
         const rows = await queryRows(
             `SELECT DATE(tarih) as gun, SUM(satis_miktari) as gunluk_satis
