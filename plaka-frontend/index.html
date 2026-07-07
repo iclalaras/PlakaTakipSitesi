@@ -796,6 +796,7 @@
 <script>
     const API_BASE = "https://plakatakipsitesi.onrender.com";
     let currentUser = null;
+    let authToken = null;
     let plateChart = null;
     let firmChart = null;
     let datePieChart = null;
@@ -829,8 +830,21 @@
         return value.toString().trim().toUpperCase();
     };
 
-    const fetchJson = async (url, options) => {
+    const fetchJson = async (url, options = {}) => {
+        // JWT token'ı Authorization header'ına ekle
+        if (authToken) {
+            options.headers = {
+                ...options.headers,
+                "Authorization": `Bearer ${authToken}`
+            };
+        }
         const res = await fetch(url, options);
+        if (res.status === 401 || res.status === 403) {
+            // Token geçersiz veya süresi dolmuş - çıkış yap
+            alert("Oturum süreniz dolmuş. Lütfen tekrar giriş yapın.");
+            logout();
+            throw new Error("Oturum süresi doldu");
+        }
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || "Hata oluştu");
         return data;
@@ -882,6 +896,7 @@
                 body: JSON.stringify({ kullanici_adi: u, sifre: p })
             });
             currentUser = data.user;
+            authToken = data.token;
             sidebarUser.textContent = u;
             loginPage.classList.add("hidden");
             appShell.classList.remove("hidden");
@@ -895,6 +910,7 @@
 
     function logout() {
         currentUser = null;
+        authToken = null;
         loginPage.classList.remove("hidden");
         appShell.classList.add("hidden");
         showTab("login");
@@ -919,7 +935,7 @@
 
     //firma ve plaka verilerini yükleme
     async function loadFirms() {
-        const firms = await fetchJson(`${API_BASE}/firmalar?kullanici_id=${currentUser.id}`);
+        const firms = await fetchJson(`${API_BASE}/firmalar`);
         window.firmsList = firms;
         const selects = [document.getElementById("daily-firm"), document.getElementById("manage-firm-select")];
         selects.forEach(sel => {
@@ -929,7 +945,7 @@
     }
 
     async function loadPlates() {
-        window.platesList = await fetchJson(`${API_BASE}/araclar?kullanici_id=${currentUser.id}`);
+        window.platesList = await fetchJson(`${API_BASE}/araclar`);
     }
 
     document.getElementById("manage-firm-name").addEventListener("input", (e) => {
@@ -960,7 +976,7 @@
         await fetchJson(`${API_BASE}/firmalar`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ firma_adi: name, kullanici_id: currentUser.id })
+            body: JSON.stringify({ firma_adi: name })
         });
         document.getElementById("manage-firm-name").value = "";
         alert("Firma eklendi!");
@@ -973,7 +989,7 @@
         await fetchJson(`${API_BASE}/firmalar/sil`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ firma_adi: name, kullanici_id: currentUser.id })
+            body: JSON.stringify({ firma_adi: name })
         });
         document.getElementById("manage-firm-delete").value = "";
         alert("Firma ve bağlı plakalar pasife alındı!");
@@ -987,7 +1003,7 @@
         await fetchJson(`${API_BASE}/araclar`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plaka, firma_id: fId, kullanici_id: currentUser.id })
+            body: JSON.stringify({ plaka, firma_id: fId })
         });
         document.getElementById("manage-plate-text").value = "";
         alert("Plaka eklendi!");
@@ -1000,7 +1016,7 @@
         await fetchJson(`${API_BASE}/araclar/sil`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plaka, kullanici_id: currentUser.id })
+            body: JSON.stringify({ plaka })
         });
         document.getElementById("manage-plate-delete").value = "";
         alert("Plaka pasife alındı!");
@@ -1029,7 +1045,7 @@
             const pData = await fetchJson(`${API_BASE}/araclar`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plaka: plakaStr, firma_id: fId, kullanici_id: currentUser.id })
+                body: JSON.stringify({ plaka: plakaStr, firma_id: fId })
             });
             plate = { id: pData.id, plaka: plakaStr };
         }
@@ -1037,7 +1053,7 @@
         await fetchJson(`${API_BASE}/kayitlar`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ arac_id: plate.id, kullanici_id: currentUser.id, satis_miktari: miktar, tarih })
+            body: JSON.stringify({ arac_id: plate.id, satis_miktari: miktar, tarih })
         });
 
         document.getElementById("daily-plate").value = "";
@@ -1054,7 +1070,7 @@
 
     async function renderDailyTable() {
         const selected = document.getElementById("daily-filter-date").value || todayStr();
-        const data = await fetchJson(`${API_BASE}/kayitlar?baslangic=${selected}&bitis=${selected}&kullanici_id=${currentUser.id}`);
+        const data = await fetchJson(`${API_BASE}/kayitlar?baslangic=${selected}&bitis=${selected}`);
         let toplamSatis = 0;
         let toplamHakedis = 0;
 
@@ -1086,7 +1102,7 @@
         await fetchJson(`${API_BASE}/kayitlar/sil`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, kullanici_id: currentUser.id })
+            body: JSON.stringify({ id })
         });
         renderDailyTable();
     });
@@ -1133,7 +1149,7 @@
             await fetchJson(`${API_BASE}/firmalar/sil`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ firma_id: firm.id, firma_adi: firm.firma_adi, kullanici_id: currentUser.id })
+                body: JSON.stringify({ firma_id: firm.id, firma_adi: firm.firma_adi })
             });
             if (selectedFirmId === firmId) selectedFirmId = null;
             await loadFirms();
@@ -1158,7 +1174,7 @@
         await fetchJson(`${API_BASE}/araclar/sil`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ arac_id: plateId, plaka, kullanici_id: currentUser.id })
+            body: JSON.stringify({ arac_id: plateId, plaka })
         });
         await loadPlates();
         renderManageTables();
@@ -1206,7 +1222,7 @@
 
         if (!plaka) return (note.textContent = "Plaka gerekli");
 
-        const data = await fetchJson(`${API_BASE}/rapor/plaka?plaka=${plaka}&baslangic=${baslangic}&bitis=${bitis}&grup=${grup}&kullanici_id=${currentUser.id}`);
+        const data = await fetchJson(`${API_BASE}/rapor/plaka?plaka=${plaka}&baslangic=${baslangic}&bitis=${bitis}&grup=${grup}`);
         document.getElementById("report-plate-body").innerHTML = data.liste.map(r => `
             <tr>
                 <td>${r.tarih}</td>
@@ -1255,7 +1271,7 @@
 
         if (!firma) return (note.textContent = "Firma adı gerekli");
 
-        const data = await fetchJson(`${API_BASE}/rapor/firma?firma=${firma}&baslangic=${baslangic}&bitis=${bitis}&grup=${grup}&kullanici_id=${currentUser.id}`);
+        const data = await fetchJson(`${API_BASE}/rapor/firma?firma=${firma}&baslangic=${baslangic}&bitis=${bitis}&grup=${grup}`);
         document.getElementById("report-firm-body").innerHTML = data.liste.map(r => `
             <tr>
                 <td>${r.tarih}</td>
@@ -1292,7 +1308,7 @@
         const note = document.getElementById("report-date-note");
         note.textContent = "";
 
-        const data = await fetchJson(`${API_BASE}/rapor/tarih?baslangic=${baslangic}&bitis=${bitis}&kullanici_id=${currentUser.id}`);
+        const data = await fetchJson(`${API_BASE}/rapor/tarih?baslangic=${baslangic}&bitis=${bitis}`);
         document.getElementById("report-date-net").textContent = formatCurrency(data.net_ciro);
 
         document.getElementById("report-date-firm-body").innerHTML = data.firmalar.map(r => `
