@@ -973,54 +973,70 @@
     document.getElementById("manage-add-firm-btn").onclick = async () => {
         const name = normalizeFirmInput(document.getElementById("manage-firm-name").value);
         if (!name) return alert("Firma adı gerekli");
-        await fetchJson(`${API_BASE}/firmalar`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ firma_adi: name })
-        });
-        document.getElementById("manage-firm-name").value = "";
-        alert("Firma eklendi!");
-        initApp();
+        try {
+            await fetchJson(`${API_BASE}/firmalar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ firma_adi: name })
+            });
+            document.getElementById("manage-firm-name").value = "";
+            alert("Firma eklendi!");
+            initApp();
+        } catch (err) {
+            alert("Hata: " + err.message);
+        }
     };
 
     document.getElementById("manage-delete-firm-btn").onclick = async () => {
         const name = normalizeFirmInput(document.getElementById("manage-firm-delete").value);
         if (!name) return alert("Firma adı gerekli");
-        await fetchJson(`${API_BASE}/firmalar/sil`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ firma_adi: name })
-        });
-        document.getElementById("manage-firm-delete").value = "";
-        alert("Firma ve bağlı plakalar pasife alındı!");
-        initApp();
+        try {
+            await fetchJson(`${API_BASE}/firmalar/sil`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ firma_adi: name })
+            });
+            document.getElementById("manage-firm-delete").value = "";
+            alert("Firma ve bağlı plakalar pasife alındı!");
+            initApp();
+        } catch (err) {
+            alert("Hata: " + err.message);
+        }
     };
 
     document.getElementById("manage-add-plate-btn").onclick = async () => {
         const fId = document.getElementById("manage-firm-select").value;
         const plaka = normalizePlateInput(document.getElementById("manage-plate-text").value);
         if (!plaka || !fId) return alert("Firma ve plaka gerekli");
-        await fetchJson(`${API_BASE}/araclar`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plaka, firma_id: fId })
-        });
-        document.getElementById("manage-plate-text").value = "";
-        alert("Plaka eklendi!");
-        initApp();
+        try {
+            await fetchJson(`${API_BASE}/araclar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plaka, firma_id: fId })
+            });
+            document.getElementById("manage-plate-text").value = "";
+            alert("Plaka eklendi!");
+            initApp();
+        } catch (err) {
+            alert("Hata: " + err.message);
+        }
     };
 
     document.getElementById("manage-delete-plate-btn").onclick = async () => {
         const plaka = normalizePlateInput(document.getElementById("manage-plate-delete").value);
         if (!plaka) return alert("Plaka gerekli");
-        await fetchJson(`${API_BASE}/araclar/sil`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ plaka })
-        });
-        document.getElementById("manage-plate-delete").value = "";
-        alert("Plaka pasife alındı!");
-        initApp();
+        try {
+            await fetchJson(`${API_BASE}/araclar/sil`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plaka })
+            });
+            document.getElementById("manage-plate-delete").value = "";
+            alert("Plaka pasife alındı!");
+            initApp();
+        } catch (err) {
+            alert("Hata: " + err.message);
+        }
     };
 
     //günlük kayıtları hesaplama ve rapor etme
@@ -1039,30 +1055,34 @@
         if (!plakaStr) return (message.textContent = "Plaka gerekli");
         if (!miktar || miktar <= 0) return (message.textContent = "Satış 0'dan büyük olmalı");
 
-        let plate = window.platesList.find(p => p.plaka === plakaStr);
-        if (!plate) {
-            if (!fId) return (message.textContent = "Yeni plaka için firma seçin");
-            const pData = await fetchJson(`${API_BASE}/araclar`, {
+        try {
+            let plate = window.platesList.find(p => p.plaka === plakaStr);
+            if (!plate) {
+                if (!fId) return (message.textContent = "Yeni plaka için firma seçin");
+                const pData = await fetchJson(`${API_BASE}/araclar`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plaka: plakaStr, firma_id: fId })
+                });
+                plate = { id: pData.id, plaka: plakaStr };
+            }
+
+            await fetchJson(`${API_BASE}/kayitlar`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plaka: plakaStr, firma_id: fId })
+                body: JSON.stringify({ arac_id: plate.id, satis_miktari: miktar, tarih })
             });
-            plate = { id: pData.id, plaka: plakaStr };
+
+            document.getElementById("daily-plate").value = "";
+            document.getElementById("daily-amount").value = "";
+            document.getElementById("daily-commission").value = "";
+            message.textContent = "Kayıt eklendi.";
+            await loadPlates();
+            document.getElementById("daily-filter-date").value = tarih;
+            renderDailyTable();
+        } catch (err) {
+            message.textContent = "Hata: " + err.message;
         }
-
-        await fetchJson(`${API_BASE}/kayitlar`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ arac_id: plate.id, satis_miktari: miktar, tarih })
-        });
-
-        document.getElementById("daily-plate").value = "";
-        document.getElementById("daily-amount").value = "";
-        document.getElementById("daily-commission").value = "";
-        message.textContent = "Kayıt eklendi.";
-        await loadPlates();
-        document.getElementById("daily-filter-date").value = tarih;
-        renderDailyTable();
     };
 
     document.getElementById("daily-refresh-btn").onclick = renderDailyTable;
